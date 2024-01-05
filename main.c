@@ -11,8 +11,9 @@
 #define COMMAND_LEN 16
 
 void run_redis_cb();
+db** get_db();
 db * my_redis;
-struct ev_loop *loop;
+// struct ev_loop *loop;
 ev_io stdin_watcher;
 
 int main(){
@@ -559,6 +560,15 @@ void run_redis_cb(){
                 printf("%d\n", result);
             }
         }
+        else if(!strcmp(cmd, "EXPIRE") || !strcmp(cmd, "expire")){
+            int time_s;
+            scanf("%15s %d", key, &time_s);
+
+            int result = set_timeout(my_redis, key, time_s);
+            if(!result){
+                printf("0\n");
+            }
+        }
         else if(!strcmp(cmd, "EXIT") || !strcmp(cmd, "exit")){
             // break;
             ev_break(EV_A_ EVBREAK_ALL);
@@ -566,4 +576,8 @@ void run_redis_cb(){
         else{
             printf("command not found\n");
         }
+}
+
+db** get_db(){
+    return &my_redis;
 }

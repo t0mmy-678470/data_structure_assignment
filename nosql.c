@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "nosql.h"
+#include <ev.h>
+
 #define MAX_KEY_LEN 15
 #define MAX_VALUE_LEN 30
 #define TRUE 1
@@ -12,7 +14,62 @@
 #define TYPE_HASH_TABLE 4
 #define TYPE_NONE 5
 #define LOAD_FACTOR 0.7
+#define INITIAL_EXPIRE_TIME 600
 // #define INIT_HASH_TABLE_SIZE 10
+extern db** get_db();
+
+void delete_expired_cb(EV_P_ ev_timer *w, int revents){
+    db** nosqldb = get_db();
+    db* tmp_node = *nosqldb;
+    db* pre_node = NULL;
+    while(tmp_node->next != NULL) { //search every node to find whether have the same key existed
+        // printf("what?\n");
+        if(&(tmp_node->timeout) != w) { //search next node !!!!!len不一樣比較
+            // printf("where are you? %s\n", tmp_node->key);
+            pre_node = tmp_node;
+            tmp_node = tmp_node->next;
+        }
+        else{
+            // printf("I found you!\n");
+            if(pre_node){
+                // printf("you aren't the first one!");
+                pre_node->next = tmp_node->next;
+            }
+            else{
+                // printf("you are the first one!");
+                *nosqldb = (*nosqldb)->next;
+                *nosqldb = init(*nosqldb);
+            }
+            free(tmp_node->key);
+            tmp_node->key = NULL;
+            free(tmp_node);
+            tmp_node = NULL;
+            break;
+        }
+    }
+}
+
+int set_timeout(db* nosqldb, char* key, int time_s){
+    db * tmp_node = nosqldb;
+    int find_key = 0;
+    while(tmp_node->next != NULL) { //search every node to find whether have the same key existed
+        if(strcmp(tmp_node->key, key)) { //search next node !!!!!len不一樣比較
+            tmp_node = tmp_node->next;
+        }
+        else{
+            find_key = 1;
+            ev_timer_stop(loop, &tmp_node->timeout);
+            ev_timer_init(&tmp_node->timeout, delete_expired_cb, time_s, 0.);
+            ev_timer_start (loop, &tmp_node->timeout);
+            break;
+        }
+    }
+    if(!find_key){
+        printf("key not found in timeout\n");
+        return 1;
+    }
+    return 0;
+}
 
 int hash(char* key, int hash_table_size){
     int c, sum=0;
@@ -201,7 +258,7 @@ int hash_set(db* nosqldb, char* hash_table_name /*node的key*/, char* field, cha
     tmp_node->value.hash_table->table[hash(field, INIT_HASH_TABLE_SIZE)] = hash_node;
 
     tmp_node->next = init(tmp_node->next);
-
+    set_timeout(nosqldb, hash_table_name, INITIAL_EXPIRE_TIME);
     return 1;
 }
 
@@ -368,6 +425,7 @@ void set_add(db* nosqldb, char* key, char** arr, int* arr_priority, int len){
         }
     }
     tmp_node->next = init(tmp_node->next);
+    set_timeout(nosqldb, key, INITIAL_EXPIRE_TIME);
     printf("OK\n");
 }
 
@@ -829,6 +887,7 @@ int set_interstore(db* nosqldb, char* dst_key, int numkeys, char** keys, int* we
 
         dst_node->next = nosqldb->next;
         nosqldb->next = dst_node;
+        set_timeout(nosqldb, dst_key, INITIAL_EXPIRE_TIME);
     }
 
     return com_member;
@@ -974,6 +1033,7 @@ int set_unionstore(db* nosqldb, char* dst_key, int numkeys, char** keys, int* we
 
         dst_node->next = nosqldb->next;
         nosqldb->next = dst_node;
+        set_timeout(nosqldb, dst_key, INITIAL_EXPIRE_TIME);
     }
 
     return com_member;
@@ -1090,6 +1150,7 @@ void left_push(db* nosqldb, char* key, char** arr, int len){
         }
     }
     tmp_node->next = init(tmp_node->next);
+    set_timeout(nosqldb, key, INITIAL_EXPIRE_TIME);
     printf("OK\n");
 }
 
@@ -1152,8 +1213,8 @@ void right_push(db* nosqldb, char* key, char** arr, int len){
             last_list_node = insert_list_value_after(last_list_node, arr[i]);
         }
     }
-        
     tmp_node->next = init(tmp_node->next);
+    set_timeout(nosqldb, key, INITIAL_EXPIRE_TIME);
     printf("OK\n");
 }
 
@@ -1312,6 +1373,7 @@ void add_or_update_data(db * nosqldb, char* key, char* value){
     strcpy(tmp_node->value.string, value);
     tmp_node->value_type = TYPE_STRING;
     tmp_node->next = init(tmp_node->next);
+    set_timeout(nosqldb, key, INITIAL_EXPIRE_TIME);
 
     printf("OK\n");
 }

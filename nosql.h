@@ -2,8 +2,15 @@
 #define INIT_HASH_TABLE_SIZE 10
 #endif
 
+#ifndef EV_H
+#define EV_H
+#include <ev.h>
+#endif
+
 #ifndef NOSQL_H
 #define NOSQL_H
+
+struct ev_loop *loop;
 
 typedef struct list
 {
@@ -48,7 +55,9 @@ typedef struct database {
     char * key;
     int value_type; //1:string 2:list 3:set 4:hash_table 5:none
     VALUE value;
+    // time_t exp_time;
     struct database * next;
+    ev_timer timeout;
 } db;
 
 // int hash_table_size = INIT_HASH_TABLE_SIZE;
@@ -77,5 +86,6 @@ int set_unionstore(db* nosqldb, char* dst_key, int numkeys, char** keys, int* we
 int hash_set(db* nosqldb, char* hash_table_name /*node的key*/, char* field, char* value);
 char* hash_get(db* nosqldb, char* hash_table_name /*node的key*/, char* field);
 int hash_del(db* nosqldb, char* hash_table_name, char* field);
+int set_timeout(db* nosqldb, char* key, int time_s);
 
 #endif

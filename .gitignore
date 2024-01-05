@@ -1,5 +1,8 @@
 test*
-lib*
+# lib*
 main
 nosql.o
 problem.txt
+.vscode
+libnosql.a
+libeb.la
